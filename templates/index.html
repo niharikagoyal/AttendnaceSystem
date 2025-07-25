@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Employee Face Recognition Attendance System</title>
+  <style>
+    * { 
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: 100vh;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 20px;
+  color: white;
+}
+
+.header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.header p {
+  font-size: 16px;
+  opacity: 0.9;
+}
+
+.recognition-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 16px 20px 10px; /* less vertical padding */
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+#cameraWrapper {
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 12px; /* smaller margin below */
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid #4caf50;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+#cameraIcon {
+  width: 100%;
+  height: 100%;
+  font-size: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 50%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+}
+
+#livePreview {
+  display: none;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+}
+
+.status-section {
+  margin-bottom: 15px;
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+  min-height: 20px;
+}
+
+.match-button {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  padding: 12px 30px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+  width: 100%;
+  max-width: 180px;
+}
+
+.match-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 30px rgba(102, 126, 234, 0.4);
+}
+
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+  display: inline-block;
+  margin-right: 10px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.welcome-message {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  color: white;
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  transform: scale(0);
+  opacity: 0;
+  transition: all 0.5s ease;
+}
+
+.welcome-message.show {
+  transform: scale(1);
+  opacity: 1;
+}
+
+.error-message {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  color: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🏢 Employee Attendance</h1>
+      <p>Face Recognition System</p>
+    </div>
+
+    <div class="recognition-card" id="recognitionCard">
+      <div id="cameraWrapper">
+        <div id="cameraIcon">📷</div>
+        <video id="livePreview" autoplay playsinline></video>
+      </div>
+
+      <div id="welcomeMessage" class="welcome-message">
+        <h3>Welcome!</h3>
+        <p id="employeeName">Employee Name</p>
+      </div>
+
+      <div id="errorMessage" class="error-message" style="display: none;">
+        ❌ No face matched. Please try again.
+      </div>
+
+      <div class="status-section">
+        <div class="status-text" id="statusText">Ready to scan your face</div>
+        <button class="match-button" id="matchButton" onclick="sendRecognize()">
+          <span id="buttonText">Start Match</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isProcessing = false;
+    let videoStream;
+
+    async function setupCamera() {
+      const video = document.createElement('video');
+      video.setAttribute("autoplay", true);
+      video.setAttribute("playsinline", true);
+      video.style.display = "none";
+      document.body.appendChild(video);
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        alert("Webcam not supported.");
+        return;
+      }
+      try {
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = videoStream;
+        await video.play();
+        window._video = video;
+
+        const preview = document.getElementById('livePreview');
+        if (preview) {
+          preview.srcObject = videoStream;
+          preview.style.display = "block";
+          document.getElementById('cameraIcon').style.display = 'none';
+        }
+      } catch (error) {
+        alert("Unable to access webcam: " + error);
+      }
+    }
+
+    async function sendRecognize() {
+      if (isProcessing || !window._video) return;
+
+      isProcessing = true;
+      const button = document.getElementById('matchButton');
+      const buttonText = document.getElementById('buttonText');
+      const statusText = document.getElementById('statusText');
+      const cameraIcon = document.getElementById('cameraIcon');
+      const welcomeMessage = document.getElementById('welcomeMessage');
+      const errorMessage = document.getElementById('errorMessage');
+
+      welcomeMessage.classList.remove('show');
+      errorMessage.style.display = 'none';
+      button.disabled = true;
+      buttonText.innerHTML = '<div class="loading-spinner"></div>Processing...';
+      statusText.textContent = '🔍 Analyzing face...';
+      cameraIcon.classList.add('pulse');
+
+      try {
+        const video = window._video;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const context = canvas.getContext('2d');
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = canvas.toDataURL('image/jpeg');
+
+        const res = await fetch('/api/recognize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: imageData })
+        });
+
+        const data = await res.json();
+
+        if (data.match && data.employeeId) {
+          statusText.textContent = '✅ Face recognized successfully!';
+          cameraIcon.textContent = '✅';
+          cameraIcon.classList.remove('pulse');
+          document.getElementById('employeeName').textContent = data.employeeName || `Employee ID: ${data.employeeId}`;
+          welcomeMessage.classList.add('show');
+          buttonText.textContent = 'Redirecting...';
+          setTimeout(() => {
+            window.location.href = `https://project.pisofterp.com/pipl/Employee/markAttendanceForAll?employeeId=${data.encryptedId}`;
+          }, 2000);
+        } else {
+          statusText.textContent = '❌ Face not recognized';
+          cameraIcon.textContent = '❌';
+          errorMessage.style.display = 'block';
+          cameraIcon.classList.remove('pulse');
+          button.disabled = false;
+          buttonText.textContent = 'Try Again';
+          isProcessing = false;
+          setTimeout(resetInterface, 3000);
+        }
+      } catch (error) {
+        console.error('Recognition error:', error);
+        statusText.textContent = '⚠️ Connection error';
+        cameraIcon.textContent = '⚠️';
+        cameraIcon.classList.remove('pulse');
+        errorMessage.style.display = 'block';
+        errorMessage.textContent = '⚠️ Connection error. Please check your network.';
+        button.disabled = false;
+        buttonText.textContent = 'Try Again';
+        isProcessing = false;
+        setTimeout(resetInterface, 3000);
+      }
+    }
+
+  function resetInterface() {
+  const cameraIcon = document.getElementById('cameraIcon');
+  const statusText = document.getElementById('statusText');
+  const button = document.getElementById('matchButton');
+  const buttonText = document.getElementById('buttonText');
+  const welcomeMessage = document.getElementById('welcomeMessage');
+  const errorMessage = document.getElementById('errorMessage');
+  const livePreview = document.getElementById('livePreview');
+
+  cameraIcon.textContent = '📷';
+  cameraIcon.style.display = 'none'; 
+  livePreview.style.display = 'block'; 
+  cameraIcon.classList.remove('pulse');
+  statusText.textContent = "Ready to scan your face";
+  button.disabled = false;
+  buttonText.textContent = "Start Match";
+  welcomeMessage.classList.remove('show');
+  errorMessage.style.display = 'none';
+  isProcessing = false;
+
+  if (videoStream && livePreview) {
+    livePreview.srcObject = videoStream;
+  }
+}
+
+
+    window.onload = setupCamera;
+  </script>
+</body>
+</html>
